@@ -9,7 +9,7 @@
 // changed to randomInteger()
 //
 // !eed log on|multi|single|off  // default:on and single
-								// outputs dice rolled to the chat window if "on", only the result if "off"
+    							// outputs dice rolled to the chat window if "on", only the result if "off"
 								// dice rolled will be on single line if "single" and on multiple lines if "multi"
 // !eed graphics on|off|s|m|l  //default:on and m
 								// shows dice rolled as graphic, small, medium, or large if "on" or as text if "off"
@@ -1154,6 +1154,261 @@ var processScriptTabs = function(argv, who) {
 			break;
     }
 };
+//--------------------------------- UPDATE
+var createDicePool = function(commandArgv) {
+    
+
+    //!eed skill(1|6)
+    //!eed upgrade(ability|4)
+    //!eed upgrade(difficulty|4)
+    //!eed downgrade(proficiency|4)
+    //!eed downgrade(challenge|4)
+
+    var isRoll = commandArgv[0].match(/!eed$/);
+	
+	if (!isRoll) {
+		return commandArgv;
+	}
+	
+    commandArgv = commandArgv.filter(function(e){return e});//clean array of empty null undefined
+    
+    Argv = {
+            Boost: 0,
+            Ability: 0,
+            Proficiency: 0,
+            SetBack: 0,
+            Difficulty: 0,
+            Challenge: 0,
+            Force: 0
+        };
+    
+    var regexSkill = /skill\((.*?)\)/;
+    var regexUpgrade = /upgrade\((.*?)\)/;
+    var regexDowngrade = /downgrade\((.*?)\)/;
+    var regexAlphaStr = /blk$|b$|g$|y$|p$|r$|w$/; 
+    
+    var skillDice = function(dice) {
+        
+        var diceArray = dice.split('|');
+        var num1 = expr(diceArray[0]);
+        var num2 = expr(diceArray[1]);
+        var totalAbil = Math.abs(num1-num2);
+        var totalProf = (num1 < num2 ? num1 : num2);
+            
+            Argv.Ability = Argv.Ability + totalAbil;
+            Argv.Proficiency = Argv.Proficiency + totalProf;
+
+    }
+    
+    //Create skills
+    for (var i = 0; i < commandArgv.length; i++) {
+        
+        var skillMatch = commandArgv[i].match(regexSkill);
+            skillMatch = (skillMatch ? skillMatch[1] : false);
+        
+        if (skillMatch) {
+            skillDice(skillMatch);
+        } 
+    }
+    
+    //Evaluates a mathematical expression 4+2g and combine like dice so 2g 3g = 5g   
+    for (var i = 0; i < commandArgv.length; i++) {
+        
+        var diceColor = commandArgv[i].match(regexAlphaStr);
+        var diceQty = 0;
+        
+		//console.log(diceColor);
+		
+        if (diceColor) {
+            diceQty  = expr(commandArgv[i].replace(diceColor[0],''));
+            diceQty = (isNaN(diceQty) ? 0 : diceQty);
+
+            switch(diceColor[0]) {
+                case 'b' :
+                    Argv.Boost = Argv.Boost + diceQty;
+                    break;
+                case 'g' :
+                    Argv.Ability = Argv.Ability + diceQty;
+                    break;
+                case 'y' :
+                    Argv.Proficiency = Argv.Proficiency + diceQty;
+                    break;
+                case 'blk' :
+                    Argv.SetBack = Argv.SetBack + diceQty;
+                    break;
+                case 'p' :
+                    Argv.Difficulty = Argv.Difficulty + diceQty;
+                    break;
+                case 'r' :
+                    Argv.Challenge = Argv.Challenge + diceQty;
+                    break;
+                case 'w' :
+                    Argv.Force = Argv.Force + diceQty;
+                    break;
+                default :
+                    break;
+                
+            }
+        } 
+    }
+    
+    //upgrade dice  
+    for (var i = 0; i < commandArgv.length; i++) {
+        var upgradeMatch = commandArgv[i].match(regexUpgrade);
+            upgradeMatch = (upgradeMatch ? upgradeMatch[1] : false);
+
+        if (upgradeMatch) {
+            var upgradeArray = upgradeMatch.split('|');
+            var type = upgradeArray[0];
+            var upgradeVal = Number(upgradeArray[1]);
+            
+            switch(type) {
+                case 'ability':
+                
+                    var totalProf = (upgradeVal < Argv.Ability ? upgradeVal : Argv.Ability);    
+                    var totalAbil = Math.abs(upgradeVal-Argv.Ability);
+                    
+                    if (upgradeVal > Argv.Ability) {
+                        totalProf = totalProf + Math.floor(totalAbil / 2);
+                        totalAbil = totalAbil % 2;   
+                    }     
+
+                    Argv.Ability = totalAbil;
+                    Argv.Proficiency = Argv.Proficiency + totalProf;
+
+                    break;
+                case 'difficulty':
+                    
+                    var totalChall = (upgradeVal < Argv.Difficulty ? upgradeVal : Argv.Difficulty);    
+                    var totalDiff = Math.abs(upgradeVal-Argv.Difficulty);
+                    
+                    if (upgradeVal > Argv.Difficulty) {
+                        totalChall = totalChall + Math.floor(totalDiff / 2);
+                        totalDiff = totalDiff % 2;   
+                    }     
+
+                    Argv.Difficulty = totalDiff;
+                    Argv.Challenge = Argv.Challenge + totalChall;
+                    
+                    break;
+            }
+        } 
+    }
+
+
+    //Downgrade dice  
+    for (var i = 0; i < commandArgv.length; i++) {
+        var downgradeMatch = commandArgv[i].match(regexDowngrade);
+            downgradeMatch = (downgradeMatch ? downgradeMatch[1] : false);
+
+        if (downgradeMatch) {
+            var downgradeArray = downgradeMatch.split('|');
+            var type = downgradeArray[0];
+            var downgradeVal = Number(downgradeArray[1]);
+            
+            switch(type) {
+                case 'proficiency':
+                    
+                    var profConvertedToAbil = Argv.Proficiency * 2;
+                    
+                    //console.log('downgrade:'+downgradeVal);
+                    //console.log('Before - Prof:'+Argv.Proficiency+' Abil:'+ Argv.Ability);
+
+                    if (downgradeVal > (Argv.Ability + profConvertedToAbil)) {
+                        Argv.Ability = 0;
+                        Argv.Proficiency = 0;
+                    } else if (downgradeVal > profConvertedToAbil) {
+                        downgradeVal = Math.abs(downgradeVal - profConvertedToAbil);
+                        Argv.Ability = Math.abs(downgradeVal - Argv.Ability);
+                        Argv.Proficiency = 0;
+                    } else {
+                        Argv.Ability = Argv.Ability + (profConvertedToAbil - downgradeVal) % 2;
+                        Argv.Proficiency = Math.floor((profConvertedToAbil - downgradeVal) / 2);
+                    }
+                    
+                    //console.log('After - Prof:'+Argv.Proficiency+' Abil:'+ Argv.Ability);
+                    
+                    break;
+                case 'challenge':
+
+                    var challConvertedToDiff = Argv.Challenge * 2;
+                    
+                    //console.log('downgrade:'+downgradeVal);
+                    //console.log('Before - Chall:'+Argv.Challenge+' Diff:'+ Argv.Difficulty);
+
+                    if (downgradeVal > (Argv.Difficulty + challConvertedToDiff)) {
+                        Argv.Difficulty = 0;
+                        Argv.Challenge = 0;
+                    } else if (downgradeVal > challConvertedToDiff) {
+                        downgradeVal = Math.abs(downgradeVal - challConvertedToDiff);
+                        Argv.Difficulty = Math.abs(downgradeVal - Argv.Difficulty);
+                        Argv.Challenge = 0;
+                    } else {
+                        Argv.Difficulty = Argv.Difficulty + (challConvertedToDiff - downgradeVal) % 2;
+                        Argv.Challenge = Math.floor((challConvertedToDiff - downgradeVal) / 2);
+                    }
+                    
+                    //console.log('After - Chall:'+Argv.Challenge+' Diff:'+ Argv.Difficulty);
+                    
+                    break;
+            }
+        } 
+    }
+    
+    //Output Argv object in array
+    
+    return ['!eed', Argv.Boost+'b', Argv.Ability+'g', Argv.Proficiency+'y', Argv.SetBack+'blk', Argv.Difficulty+'p', Argv.Challenge+'r', Argv.Force+'w'];
+    
+}
+
+//Evaluates a mathematical expression (as a string) and return the result
+var expr = function (expr) {
+
+    var chars = expr.split("");
+    var n = [], op = [], index = 0, oplast = true;
+
+    n[index] = "";
+
+    // Parse the expression
+    for (var c = 0; c < chars.length; c++) {
+
+        if (isNaN(parseInt(chars[c])) && chars[c] !== "." && !oplast) {
+            op[index] = chars[c];
+            index++;
+            n[index] = "";
+            oplast = true;
+        } else {
+            n[index] += chars[c];
+            oplast = false;
+        }
+    }
+
+    // Calculate the expression
+    expr = parseFloat(n[0]);
+    for (var o = 0; o < op.length; o++) {
+        var num = parseFloat(n[o + 1]);
+        switch (op[o]) {
+            case "+":
+                expr = expr + num;
+                break;
+            case "-":
+                expr = expr - num;
+                break;
+            case "*":
+                expr = expr * num;
+                break;
+            case "/":
+                expr = expr / num;
+                break;
+        }
+    }
+
+    return expr;
+}
+
+
+//---------------------------------- END UPDATE
+
 
 on("chat:message", function(msg) {
     // returns the chat window command entered, all in lowercase.
@@ -1165,5 +1420,7 @@ on("chat:message", function(msg) {
     if (msg.type != 'api') {
         return;
     }
-    return processScriptTabs(argv, msg.who);
+    return processScriptTabs(createDicePool(argv), msg.who);
 });
+
+
